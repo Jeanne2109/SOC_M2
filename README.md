@@ -86,7 +86,7 @@ Où regarder : OPNsense https://192.168.56.2 (*Services › Intrusion Detection 
 
 - TheHive 6 (profil *testing* StrangeBee, licence d'essai puis licence Community gratuite à activer), n8n 2.46.6.
 - Le workflow `lab/ia/workflow-soc-ia.json` crée l'alerte TheHive puis demande à un LLM une analyse structurée (gravité, événement redouté, faux positif probable, résumé, 3 actions), au format JSON imposé par un schéma.
-- **LLM gratuit par défaut : Groq** (`openai/gpt-oss-120b`, API compatible OpenAI, offre gratuite : 30 requêtes/min, 1 000/jour). Créer une clé sur https://console.groq.com/keys, puis dans n8n › *Credentials* › « Groq API (Authorization: Bearer ...) », compléter la valeur `Bearer ` avec la clé (`Bearer gsk_...`).
+- **LLM gratuit par défaut : Groq** (`openai/gpt-oss-120b`, API compatible OpenAI, offre gratuite : 30 requêtes/min, 1 000/jour). Créer une clé sur https://console.groq.com/keys, puis dans n8n › *Credentials* › « Groq API (Authorization: Bearer ...) », compléter la valeur `Bearer ` avec la clé (`Bearer gsk_...`). **Garder le mot `Bearer` et l'espace devant la clé**, sinon Groq répond « Invalid API Key ».
 - Variante payante : `lab/ia/workflow-soc-ia-claude.json` (Claude, `claude-opus-5-5`, clé Anthropic).
 - Aucune clé n'est fournie. Sans clé, la chaîne fonctionne en mode dégradé : le ticket TheHive est créé avec l'étiquette `ia:indisponible`.
 - Offre gratuite : le fournisseur peut réutiliser les données envoyées ; le workflow n'envoie que les champs techniques de l'alerte (IP, signature, règle), jamais de journaux ni de fichiers.

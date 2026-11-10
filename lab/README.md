@@ -43,7 +43,7 @@ Scripts PowerShell qui construisent la maquette du HLD/LLD. À lancer dans l'ord
 **Débloquer une IP** sur OPNsense : `pfctl -t __wazuh_agent_drop -T delete <IP>` (ou `-T flush` pour tout vider). Les adresses du PC, d'OPNsense, de Wazuh et des VLAN internes ne sont jamais bloquées (liste blanche dans `soc-drop`).
 
 **Accès depuis le PC** : OPNsense https://192.168.56.2 et `ssh root@192.168.56.2` ; Wazuh https://192.168.56.10 et `ssh wazuh-user@192.168.56.10` (clé `secrets\id_lab`).
-Les clés d'API (Groq par défaut, ou Anthropic avec `iaworkflow-soc-ia-claude.json`, TheHive, AbuseIPDB) se saisissent dans les identifiants de n8n, jamais dans les fichiers.
+Les clés d'API (Groq par défaut, ou Anthropic avec `ia\workflow-soc-ia-claude.json`, TheHive, AbuseIPDB) se saisissent dans les identifiants de n8n, jamais dans les fichiers.
 
 Dossiers créés : `images\` (ISO et OVA), `vms\` (disques), `captures\` (écrans des consoles), `secrets\` (clé SSH et mots de passe du labo, à ne pas partager).
 
