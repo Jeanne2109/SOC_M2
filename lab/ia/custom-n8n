@@ -1,0 +1,24 @@
+#!/var/ossec/framework/python/bin/python3
+# Integration Wazuh -> n8n : appele par integratord avec <fichier alerte> <cle api> <hook_url>
+# A copier dans /var/ossec/integrations/custom-n8n (chmod 750, chown root:wazuh)
+import json, sys, urllib.request
+
+alert = json.load(open(sys.argv[1]))
+hook_url = sys.argv[3]
+rule, data = alert.get("rule", {}), alert.get("data", {})
+
+# Uniquement des champs techniques : jamais le log complet ni le contenu des fichiers
+payload = {
+    "id": alert.get("id"),
+    "timestamp": alert.get("timestamp"),
+    "agent": alert.get("agent", {}).get("name"),
+    "rule": {k: rule.get(k) for k in ("id", "level", "description", "groups", "mitre")},
+    "reseau": {k: data.get(k) for k in ("src_ip", "dest_ip", "dest_port", "proto")},
+    "suricata": {k: data.get("alert", {}).get(k) for k in ("signature", "signature_id", "category", "severity")},
+    "fichier": alert.get("syscheck", {}).get("path"),
+    "processus": data.get("win", {}).get("eventdata", {}).get("image"),
+}
+
+req = urllib.request.Request(hook_url, data=json.dumps(payload).encode(),
+                             headers={"Content-Type": "application/json"})
+urllib.request.urlopen(req, timeout=10)

@@ -1,0 +1,16 @@
+# Jamais dans le depot : secrets du labo (cle SSH, mots de passe, cles d'API)
+lab/secrets/
+# Trop volumineux : disques des VM, ISO et OVA (a telecharger, voir lab/README.md)
+lab/vms/
+lab/images/
+*.vmdk
+*.vdi
+*.iso
+*.ova
+*.sav
+# Captures des consoles pendant la construction et copies de reference d'OPNsense
+lab/captures/
+lab/ref/
+# Fichiers temporaires
+~$*
+*.bak

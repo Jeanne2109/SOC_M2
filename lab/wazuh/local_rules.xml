@@ -1,0 +1,109 @@
+<!-- Regles SOC Projet 1 (HLD/LLD section 6) - /var/ossec/etc/rules/local_rules.xml -->
+<!-- Numeros reserves au SOC : 100100 a 100199 -->
+
+<group name="soc,ids_reseau,">
+  <rule id="100101" level="8">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^(SOC ER1|ET CINS|ET DROP|ET COMPROMISED)</field>
+    <description>ER1 - IP malveillante : $(alert.signature) ($(src_ip) vers $(dest_ip))</description>
+    <mitre><id>T1190</id></mitre>
+    <group>er1,</group>
+  </rule>
+  <rule id="100102" level="8">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^SOC ER2</field>
+    <description>ER2 - Acces depuis un pays a risque : $(src_ip) vers $(dest_ip)</description>
+    <mitre><id>T1133</id></mitre>
+    <group>er2,</group>
+  </rule>
+  <rule id="100103" level="10">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^(SOC ER3|ET POLICY PE EXE|ET MALWARE)</field>
+    <description>ER3 - Transfert de malware : $(alert.signature) ($(src_ip) vers $(dest_ip))</description>
+    <mitre><id>T1105</id></mitre>
+    <group>er3,</group>
+  </rule>
+  <rule id="100104" level="6">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^(SOC ER4|ET SCAN)</field>
+    <description>ER4 - Scan reseau depuis $(src_ip)</description>
+    <mitre><id>T1046</id></mitre>
+    <group>er4,</group>
+  </rule>
+  <rule id="100105" level="10">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^(SOC ER5|ET DOS)</field>
+    <description>ER5 - Deni de service depuis $(src_ip)</description>
+    <mitre><id>T1498</id></mitre>
+    <group>er5,</group>
+  </rule>
+  <rule id="100106" level="12">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^ET EXPLOIT</field>
+    <description>Exploitation reseau : $(alert.signature) ($(src_ip) vers $(dest_ip))</description>
+    <mitre><id>T1210</id></mitre>
+  </rule>
+  <!-- ER2 : paquet bloque par la regle flottante "ER2 blocage pays a risque" d'OPNsense (alias GeoIP PAYS_RISQUE).
+       Le champ id du journal pf est l'etiquette de la regle : a mettre a jour si la regle est recreee
+       (pfctl -vvsr | grep PAYS_RISQUE). -->
+  <rule id="100108" level="8">
+    <if_sid>87701</if_sid>
+    <id>a14d1a9b117c1458847da4258cd07764</id>
+    <description>ER2 - Acces bloque depuis un pays a risque : $(srcip) vers $(dstip)</description>
+    <mitre><id>T1133</id></mitre>
+    <group>er2,</group>
+  </rule>
+  <rule id="100107" level="10">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^ET WEB_(SERVER|SPECIFIC_APPS)</field>
+    <description>Attaque web : $(alert.signature) ($(src_ip) vers $(dest_ip))</description>
+    <mitre><id>T1190</id></mitre>
+  </rule>
+</group>
+
+<group name="soc,test,">
+  <!-- Regle de test de bout en bout (SID 1000090 : ping vers le WAN), sans reponse automatique -->
+  <rule id="100190" level="3">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature" type="pcre2">^SOC TEST</field>
+    <description>Test SOC : $(alert.signature) depuis $(src_ip)</description>
+  </rule>
+</group>
+
+<group name="soc,impact_hote,">
+  <rule id="100120" level="5">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.image" type="pcre2">(?i)(\\(cmd|powershell|rundll32|regsvr32|certutil|bitsadmin|mshta|wscript|cscript)\.exe$|\\Users\\Public\\|\\Windows\\Temp\\)</field>
+    <description>Execution suspecte sur $(win.system.computer) : $(win.eventdata.image)</description>
+    <mitre><id>T1059</id></mitre>
+  </rule>
+</group>
+
+<group name="soc,correlation,">
+  <rule id="100150" level="14" timeframe="300">
+    <if_group>impact_hote</if_group>
+    <if_matched_group>ids_reseau</if_matched_group>
+    <global_frequency/>
+    <description>CRITIQUE - Alerte reseau suivie d'une execution suspecte sur $(win.system.computer) en moins de 5 min</description>
+  </rule>
+  <!-- Chemin de fichier obligatoire : le groupe syscheck contient aussi les messages de fin de scan
+       rootcheck, qui declenchaient la correlation sans aucun fichier modifie (constate le 09/11).
+       Le champ de regle est "file" : "syscheck.path" n existe que dans l alerte JSON (teste le 09/11). -->
+  <rule id="100151" level="14" timeframe="300">
+    <if_group>syscheck</if_group>
+    <if_matched_group>ids_reseau</if_matched_group>
+    <field name="file" type="pcre2">^/</field>
+    <!-- L'alerte reseau vient de l'agent OPNsense, le fichier de SRV-WEB : sans global_frequency,
+         Wazuh ne correle que les evenements d'un meme agent (constate le 09/11) -->
+    <global_frequency/>
+    <description>CRITIQUE - Alerte reseau suivie d'une modification de fichier ($(file)) en moins de 5 min</description>
+  </rule>
+  <!-- Cas qui declenche l'isolement : la modification touche la racine web (depot de webshell).
+       Seul SRV-WEB surveille /var/www : le manager et OPNsense ne peuvent pas declencher l'isolement. -->
+  <rule id="100152" level="15">
+    <if_sid>100151</if_sid>
+    <field name="file">^/var/www/</field>
+    <description>CRITIQUE - Alerte reseau puis modification de la racine web ($(file)) : webshell probable, isolement de l'hote</description>
+    <mitre><id>T1505.003</id></mitre>
+  </rule>
+</group>

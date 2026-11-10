@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<ruleset documentation_url="https://docs.opnsense.org/">
+    <location url="http://127.0.0.1:8088/" prefix="SOC"/>
+    <files>
+        <file url="http://127.0.0.1:8088/soc-local.rules" description="Regles locales SOC Projet 1">soc-local.rules</file>
+    </files>
+</ruleset>

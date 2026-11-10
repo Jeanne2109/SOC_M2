@@ -1,0 +1,22 @@
+# n8n pour le copilote IA (VM SOC-IA, 10.10.30.20)
+# Epingler N8N_VERSION sur la derniere version stable au moment de l'installation (fichier .env)
+services:
+  n8n:
+    image: "docker.n8n.io/n8nio/n8n:${N8N_VERSION}"
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=10.10.30.20
+      - WEBHOOK_URL=http://10.10.30.20:5678/
+      - N8N_SECURE_COOKIE=false        # acces en HTTP dans le labo
+      - GENERIC_TIMEZONE=Europe/Paris
+      - TZ=Europe/Paris
+    volumes:
+      - n8n_data:/home/node/.n8n
+    extra_hosts:
+      - "thehive.local:10.10.30.20"     # TheHive est publie par son Nginx sur la meme VM
+
+volumes:
+  n8n_data:

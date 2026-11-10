@@ -1,0 +1,50 @@
+#!/usr/local/bin/python3
+# Reponse active Wazuh sur OPNsense : bloque l'IP source d'une alerte SOC
+# (/var/ossec/active-response/bin/soc-drop, chmod 750, chown root:wazuh)
+# Variante du script opnsense-fw du plugin : il ne lit que data.srcip, alors que les
+# alertes Suricata decodees par Wazuh portent l'adresse dans data.src_ip.
+import datetime, ipaddress, json, subprocess, sys
+
+TABLE = "__wazuh_agent_drop"      # table pf deja bloquee par le plugin os-wazuh-agent
+JAMAIS = [ipaddress.ip_network(n) for n in (
+    "10.10.0.0/16",               # VLAN Serveurs et Outils
+    "192.168.56.1/32",            # PC d'administration
+    "192.168.56.2/32",            # OPNsense
+    "192.168.56.10/32",           # Wazuh (administration)
+    "127.0.0.0/8",
+)]
+
+def log(msg):
+    with open("/var/ossec/logs/active-responses.log", "a") as f:
+        f.write(f"{datetime.datetime.now():%Y/%m/%d %H:%M:%S} soc-drop: {msg}\n")
+
+msg = json.loads(sys.stdin.readline())
+data = msg.get("parameters", {}).get("alert", {}).get("data", {})
+ip = data.get("src_ip") or data.get("srcip")
+try:
+    adresse = ipaddress.ip_address(ip)
+except (TypeError, ValueError):
+    log(f"adresse source absente ou invalide : {ip}")
+    sys.exit(0)
+if any(adresse in n for n in JAMAIS):
+    log(f"ignore (adresse protegee) : {ip}")
+    sys.exit(0)
+
+regle = str(msg.get("parameters", {}).get("alert", {}).get("rule", {}).get("id", "0"))
+cle = f"{regle}-{ip}"      # cle de deduplication par regle + IP (un meme ER ne rebloque pas, un autre si)
+
+if msg["command"] == "add":
+    # Protocole Wazuh 4.2+ : demander a l'agent si cette combinaison est deja active
+    print(json.dumps({"version": 1, "origin": {"name": "soc-drop", "module": "active-response"},
+                      "command": "check_keys", "parameters": {"keys": [cle]}}), flush=True)
+    deja = json.loads(sys.stdin.readline()).get("command") != "continue"
+    # Meme si Wazuh considere le blocage actif, on s'assure que l'IP est dans la table : elle a pu
+    # etre videe entre-temps (redemarrage d'OPNsense, levee manuelle, script de test). pfctl add est idempotent.
+    subprocess.run(["/sbin/pfctl", "-t", TABLE, "-T", "add", ip], capture_output=True)
+    subprocess.run(["/sbin/pfctl", "-k", ip], capture_output=True)      # coupe les sessions en cours
+    log(f"{'deja bloquee, table verifiee' if deja else 'bloquee'} : {ip} (regle {regle})")
+    if deja:
+        sys.exit(0)
+elif msg["command"] == "delete":
+    subprocess.run(["/sbin/pfctl", "-t", TABLE, "-T", "delete", ip], capture_output=True)
+    log(f"debloquee : {ip}")
