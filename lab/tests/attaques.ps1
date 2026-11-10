@@ -20,10 +20,14 @@ tail -n 1 /var/ossec/logs/active-responses.log
 
 if ($choix -in "tous", "er1") {
     Flush
-    # ER1 : l'IP de Kali est ajoutee a la liste d'IOC le temps du test, puis retiree
-    Invoke-SshScript $o "sed -i.bak 's/\[203.0.113.66\]/[203.0.113.66,$($Ip.Kali)]/' /root/soc-rules/soc-local.rules; cd /root/soc-rules && (python3 -m http.server 8088 --bind 127.0.0.1 >/dev/null 2>&1 &); sleep 2; configctl ids update >/dev/null; sleep 40; pkill -f http.server; configctl ids install rules >/dev/null; configctl ids reload >/dev/null; mv /root/soc-rules/soc-local.rules.bak /root/soc-rules/soc-local.rules"
+    # ER1 : l'IP de Kali est ajoutee a la liste d'IOC le temps du test, puis retiree.
+    # Suricata doit etre recharge dans les deux sens : avant le 10/11, la liste d'origine etait remise
+    # sans rechargement et Kali restait IOC (alerte ER1 parasite a chaque attaque suivante).
+    $recharger = "cd /root/soc-rules && (python3 -m http.server 8088 --bind 127.0.0.1 >/dev/null 2>&1 &); sleep 2; configctl ids update >/dev/null; sleep 40; pkill -f http.server; configctl ids install rules >/dev/null; configctl ids reload >/dev/null"
+    Invoke-SshScript $o "sed -i '' 's/\[203.0.113.66\]/[203.0.113.66,$($Ip.Kali)]/' /root/soc-rules/soc-local.rules; $recharger"
     Invoke-SshScript $k "curl -s -o /dev/null --max-time 5 http://$cible/ ; echo 'acces depuis Kali (IOC)'"
     Bilan "ER1 - acces depuis une IP malveillante (IOC)"
+    Invoke-SshScript $o "sed -i '' 's/\[203.0.113.66,$($Ip.Kali)\]/[203.0.113.66]/' /root/soc-rules/soc-local.rules; $recharger; echo 'liste IOC remise : Kali retiree'"
 }
 if ($choix -in "tous", "er4") {
     Flush

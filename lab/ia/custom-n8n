@@ -1,22 +1,65 @@
 #!/var/ossec/framework/python/bin/python3
 # Integration Wazuh -> n8n : appele par integratord avec <fichier alerte> <cle api> <hook_url>
 # A copier dans /var/ossec/integrations/custom-n8n (chmod 750, chown root:wazuh)
+#
+# Envoie a n8n un resume structure de l'alerte ET l'alerte complete (champs techniques), pour que
+# le copilote IA dispose de toutes les informations sur l'anomalie. Les champs fournis par
+# l'attaquant (URL, user-agent, charge utile, journal brut) sont tronques : n8n les signale a l'IA
+# comme des donnees non fiables.
 import json, sys, urllib.request
+
+LIM = 600   # longueur max d'un champ texte libre
+
+def tronque(v, n=LIM):
+    if isinstance(v, str):
+        return v if len(v) <= n else v[:n] + "...[tronque]"
+    if isinstance(v, dict):
+        return {k: tronque(x, n) for k, x in v.items()}
+    if isinstance(v, list):
+        return [tronque(x, n) for x in v[:20]]
+    return v
 
 alert = json.load(open(sys.argv[1]))
 hook_url = sys.argv[3]
 rule, data = alert.get("rule", {}), alert.get("data", {})
+suri = data.get("alert", {}) if isinstance(data.get("alert"), dict) else {}
+http = data.get("http", {}) if isinstance(data.get("http"), dict) else {}
+flow = data.get("flow", {}) if isinstance(data.get("flow"), dict) else {}
+sysc = alert.get("syscheck", {})
 
-# Uniquement des champs techniques : jamais le log complet ni le contenu des fichiers
 payload = {
     "id": alert.get("id"),
     "timestamp": alert.get("timestamp"),
     "agent": alert.get("agent", {}).get("name"),
-    "rule": {k: rule.get(k) for k in ("id", "level", "description", "groups", "mitre")},
-    "reseau": {k: data.get(k) for k in ("src_ip", "dest_ip", "dest_port", "proto")},
-    "suricata": {k: data.get("alert", {}).get(k) for k in ("signature", "signature_id", "category", "severity")},
-    "fichier": alert.get("syscheck", {}).get("path"),
-    "processus": data.get("win", {}).get("eventdata", {}).get("image"),
+    "agent_ip": alert.get("agent", {}).get("ip"),
+    "location": alert.get("location"),
+    "decoder": alert.get("decoder", {}).get("name"),
+    "rule": {k: rule.get(k) for k in ("id", "level", "description", "groups", "mitre", "firedtimes")},
+    "reseau": {
+        "src_ip": data.get("src_ip") or data.get("srcip"),
+        "src_port": data.get("src_port") or data.get("srcport"),
+        "dest_ip": data.get("dest_ip") or data.get("dstip"),
+        "dest_port": data.get("dest_port") or data.get("dstport"),
+        "proto": data.get("proto") or data.get("protocol"),
+        "app_proto": data.get("app_proto"),
+        "interface": data.get("in_iface") or data.get("interface"),
+        "action_pare_feu": data.get("action"),
+    },
+    "suricata": {k: suri.get(k) for k in ("signature", "signature_id", "category", "severity", "action", "rev")},
+    "flux": {k: flow.get(k) for k in ("pkts_toserver", "pkts_toclient", "bytes_toserver", "bytes_toclient", "start")},
+    "http": tronque({k: http.get(k) for k in ("hostname", "url", "http_method", "http_user_agent", "status", "length")}, 300),
+    "fichier": {
+        "chemin": sysc.get("path"),
+        "evenement": sysc.get("event"),
+        "taille": sysc.get("size_after"),
+        "proprietaire": sysc.get("uname_after"),
+        "sha256": sysc.get("sha256_after"),
+        "md5": sysc.get("md5_after"),
+        "mode": sysc.get("mode"),
+    } if sysc else None,
+    "processus": data.get("win", {}).get("eventdata", {}).get("image") if isinstance(data.get("win"), dict) else None,
+    "charge_utile": tronque(data.get("payload_printable"), 400),
+    "journal_brut": tronque(alert.get("full_log"), 800),
 }
 
 req = urllib.request.Request(hook_url, data=json.dumps(payload).encode(),
