@@ -1,0 +1,5 @@
+# Fins de ligne Unix partout : les scripts .sh, PHP, Python et les regles sont copies dans des VM Linux/FreeBSD
+# (un CRLF ajoute par Git sous Windows les casserait). PowerShell lit aussi bien les fichiers en LF.
+* text=auto eol=lf
+*.docx binary
+*.png binary
